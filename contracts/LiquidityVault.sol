@@ -26,6 +26,7 @@ contract LiquidityVault is Ownable, ERC20("LPVaultToken", "lpv") {
     IERC20 public usdt;
     IERC20 public lpv;
     address public updater;
+    address public liquidityPool;
 
     // create a constructor, set "lpv" token address = this contract address.
     constructor() {
@@ -38,6 +39,10 @@ contract LiquidityVault is Ownable, ERC20("LPVaultToken", "lpv") {
 
     function setLPV(IERC20 _lpv) public onlyOwner {
         lpv = _lpv;
+    }
+
+    function setLiquidityPool(address _liquiditypool) public onlyOwner {
+        liquidityPool = _liquiditypool;
     }
  
     // memory depositedUSDT state
@@ -66,6 +71,13 @@ contract LiquidityVault is Ownable, ERC20("LPVaultToken", "lpv") {
         usdt.transfer(msg.sender, _amount);
         depositedUSDT[msg.sender] = depositedUSDT[msg.sender].sub(_amount);
         emit Withdraw(msg.sender, _amount);
+    }
+
+    // burn lpv token from user. Using for LiquidityPool.
+    function burn(address _address, uint256 _amount) public {
+        require (msg.sender == liquidityPool, "only liquidityPool can burn");
+        lpv.transferFrom(_address, address(this), _amount);
+        _burn(_address, _amount);
     }
 
     // delete all depositedUSDT
