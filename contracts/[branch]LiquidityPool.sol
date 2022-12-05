@@ -13,7 +13,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "LPVault.sol";
+import "LiquidityVault.sol";
 
 // liquiditypool is used in Option, 
 // Users could withdrawl portion of their funds based on
