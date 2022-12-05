@@ -21,7 +21,7 @@ import "LiquidityVault.sol";
 // And if option ended, users could withdrawl funds based on 
 // the ratio of USDT and LP Token.
 
-contract Liquiditypool is Ownable {
+contract LiquidityPool is Ownable {
     using SafeMath for uint256;
     ERC20 public lptoken;
     IERC20 public usdt;
