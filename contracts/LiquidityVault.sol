@@ -100,13 +100,13 @@ contract LiquidityVault is Ownable, ERC20("LPVaultToken", "lpv") {
     // allow updater transfer out token
     // This is for initiate a new Option Round
     // will delete all deposted amount of users.
-    function StartOption(address _to) public returns (uint256 sendAmount) {
+    function StartOption() public returns (address sendTo, uint256 sendAmount) {
         require(msg.sender == updater, "only updater can transfer out");
         uint256 _amount = usdt.balanceOf(address(this));
-        usdt.transfer(_to, _amount);
+        usdt.transfer(liquidityPool, _amount);
         _mintToken();
         _deleteDepositedUSDT();
-        return _amount;
+        return (liquidityPool, _amount);
     }    
 
     // set "updater" role
@@ -120,6 +120,3 @@ contract LiquidityVault is Ownable, ERC20("LPVaultToken", "lpv") {
     }
 
 }
-
-
-    
