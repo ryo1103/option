@@ -7,7 +7,6 @@
 
 pragma solidity ^0.8.0;
 
-// import openzeppplin contracts
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
@@ -23,15 +22,16 @@ import "LiquidityVault.sol";
 
 contract LiquidityPool is Ownable {
     using SafeMath for uint256;
-    ERC20 public lptoken;
+    IERC20 public lptoken;
     IERC20 public usdt;
+    IERC20 public oToken; // the Shares of Option, including Put and Call.
     bool public isOptionStart;
     uint256 public roundNumber;
     address public liquidityVaultAddress;
     address public exchangeAddress;
     address public Updater;
+    uint256 public remainshares;
 
-    // return an event that contain the usdt balance of this contract
     event Sendout(uint256 usdtAmount);
     
     constructor() {
@@ -39,7 +39,7 @@ contract LiquidityPool is Ownable {
         roundNumber = 0;
     }
 
-    function setLPtoken(ERC20 _lptoken) public onlyOwner {
+    function setLPtoken(IERC20 _lptoken) public onlyOwner {
         lptoken = _lptoken;
     }
 
@@ -59,11 +59,15 @@ contract LiquidityPool is Ownable {
         Updater = _Updater;
     }
 
+    function setoToken(IERC20 _oToken) public  {
+        require (msg.sender == Updater, "You are not Updater!");
+        oToken = _oToken;
+    }
+
     function startPeriod() public  {
         require(msg.sender == Updater, "You are not Updater!");
         require(isOptionStart == false, "Sorry, Option is started!");
         isOptionStart = true;
-        // add 1 to the round number.
         roundNumber = roundNumber + 1;
     }
 
@@ -71,42 +75,44 @@ contract LiquidityPool is Ownable {
     function endPeriod() public  {
         require(msg.sender == Updater, "You are not Updater!");
         require(isOptionStart == true, "Sorry, Option is ended!");
-        // set a state of true or false
         isOptionStart = false;
     }
 
     //  send token to other address
-    function sendToken(uint256 _amount) public {
-        // require message sender is ExchangeAddress
-        require(msg.sender == exchangeAddress, "You are not the exchange");
+    function sendToExchange(uint256 _amount) public {
+        require(msg.sender == exchangeAddress, "Only exchange can call");
         usdt.transfer(exchangeAddress, _amount);
         emit Sendout(_amount);
     }
 
-    // withdrawl usdt from this contract, require burn LP token, and calculate shares
-    function exitDuringOption(uint256 _amount) public {
-        // check if option is started
+    // withdrawl usdt from this contract, require burn LP token, and calculate shares, must require isOptionStart = true
+    function exitDuringOption(uint256 _amount) public returns(uint256 withdrawAmount) {
+        uint256 soldShares = oToken.totalSupply();
+        uint256 remainShares = usdt.balanceOf(address(this)).sub(soldShares);
+        if (remainShares <= 0) {
+            remainShares = 0;
+        }
+        uint256 userPortion = lptoken.balanceOf(msg.sender).div(lptoken.totalSupply());
         require(isOptionStart == true, "Option is not started");
-        // check if user has enough LP token
-        require (lptoken.balanceOf(msg.sender) >= _amount, "Not enough LP token");
-        // require (_amount <= totalsupply of shares / balanceof this address * 2);
+        require(lptoken.balanceOf(msg.sender) >= _amount, "Not enough LP token");
+        require(remainShares > 0, "No Shares left!");
+        require(_amount <= userPortion.mul(remainShares), "Not enough Shares!");
+        LiquidityVault(liquidityVaultAddress).approve(msg.sender, _amount);
         LiquidityVault(liquidityVaultAddress).burn(msg.sender, _amount);
-        // transfer usdt to msg.sender
         usdt.transfer(msg.sender, _amount);
+        return (_amount);
     }
 
     // withdrawl usdt from this contract, require burn LP token, require isOptionStart = false
-    function withdrawlAfterOption(uint256 _amount) public {
+    function withdrawlAfterOption(uint256 _amount) public returns(uint256 burnLPAmount,uint256 withdrawAmount) {
         uint256 totalShares = lptoken.totalSupply();
         uint256 what = _amount.mul(usdt.balanceOf(address(this))).div(totalShares);
-        // check if option is ended
         require(isOptionStart == false, "Option is not ended");
-        // check if user has enough LP token
-        require (lptoken.balanceOf(msg.sender) >= _amount, "Not enough LP token");
-        // require (_amount <= totalsupply of shares / balanceof this address * 2);
+        require(lptoken.balanceOf(msg.sender) >= _amount, "Not enough LP token");
+        LiquidityVault(liquidityVaultAddress).approve(msg.sender, _amount);
         LiquidityVault(liquidityVaultAddress).burn(msg.sender, _amount);
-        // transfer usdt to msg.sender
         usdt.transfer(msg.sender, what);
+        return (_amount ,what);
     }
 
     // get users token balance
@@ -131,5 +137,21 @@ contract LiquidityPool is Ownable {
         uint256 usdtPerLp = usdt.balanceOf(address(this)).div(totalShares);
         return (usdtPerLp, roundNumber, isOptionStart);
     }
+
+    // check Remaining Shares
+    function checkRemainShares() public view returns (uint256 remain) {
+        uint256 soldShares = oToken.totalSupply();
+        uint256 remainShares = usdt.balanceOf(address(this)).sub(soldShares);
+        if (remainShares <= 0) {
+            remainShares = 0;
+        }
+        return remainShares;
+    }
+
+    // Check user's portion of LP
+    function checkUserLPPortion() public view returns (uint256 userLPportion) {
+        uint256 userPortion = lptoken.balanceOf(msg.sender).div(lptoken.totalSupply());
+        return userPortion;
+    }  
 
 }
