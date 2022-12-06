@@ -37,6 +37,10 @@ contract LiquidityPool is Ownable {
     constructor() {
         isOptionStart = false;
         roundNumber = 0;
+        Updater = address(0x5B38Da6a701c568545dCfcB03FcB875f56beddC4);
+        lptoken = IERC20(0xd8b934580fcE35a11B58C6D73aDeE468a2833fa8);
+        usdt = IERC20(0xd9145CCE52D386f254917e481eB44e9943F39138);
+        liquidityVaultAddress = address(0xd8b934580fcE35a11B58C6D73aDeE468a2833fa8);
     }
 
     function setLPtoken(IERC20 _lptoken) public onlyOwner {
@@ -86,6 +90,7 @@ contract LiquidityPool is Ownable {
     }
 
     // withdrawl usdt from this contract, require burn LP token, and calculate shares, must require isOptionStart = true
+    // Need users approve the both LiquidityPool and LiquidityVault on USDT contract, and then approve in LiquidityVault.
     function exitDuringOption(uint256 _amount) public returns(uint256 withdrawAmount) {
         uint256 soldShares = oToken.totalSupply();
         uint256 remainShares = usdt.balanceOf(address(this)).sub(soldShares);
@@ -97,7 +102,8 @@ contract LiquidityPool is Ownable {
         require(lptoken.balanceOf(msg.sender) >= _amount, "Not enough LP token");
         require(remainShares > 0, "No Shares left!");
         require(_amount <= userPortion.mul(remainShares), "Not enough Shares!");
-        LiquidityVault(liquidityVaultAddress).approve(msg.sender, _amount);
+        LiquidityVault(liquidityVaultAddress).approve(address(this), _amount);
+        LiquidityVault(liquidityVaultAddress).approve(address(liquidityVaultAddress), _amount);
         LiquidityVault(liquidityVaultAddress).burn(msg.sender, _amount);
         usdt.transfer(msg.sender, _amount);
         return (_amount);
@@ -109,7 +115,8 @@ contract LiquidityPool is Ownable {
         uint256 what = _amount.mul(usdt.balanceOf(address(this))).div(totalShares);
         require(isOptionStart == false, "Option is not ended");
         require(lptoken.balanceOf(msg.sender) >= _amount, "Not enough LP token");
-        LiquidityVault(liquidityVaultAddress).approve(msg.sender, _amount);
+        LiquidityVault(liquidityVaultAddress).approve(address(this), _amount);
+        LiquidityVault(liquidityVaultAddress).approve(address(liquidityVaultAddress), _amount);
         LiquidityVault(liquidityVaultAddress).burn(msg.sender, _amount);
         usdt.transfer(msg.sender, what);
         return (_amount ,what);
