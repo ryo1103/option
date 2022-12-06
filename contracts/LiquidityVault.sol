@@ -24,21 +24,20 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 contract LiquidityVault is Ownable, ERC20("LPVaultToken", "lpv") {
     using SafeMath for uint256;
     IERC20 public usdt;
-    IERC20 public lpv;
+    IERC20 private lpv;
     address public updater;
     address public liquidityPool;
 
     // create a constructor, set "lpv" token address = this contract address.
     constructor() {
         lpv = IERC20(address(this));
+        usdt = IERC20(address(0xd9145CCE52D386f254917e481eB44e9943F39138));
+        updater = address(msg.sender);
+        liquidityPool = address(0x4D9f44094F448D949fc3EECa230A01d362529424);
     }
 
     function setUsdt(IERC20 _usdt) public onlyOwner {
         usdt = _usdt;
-    }
-
-    function setLPV(IERC20 _lpv) public onlyOwner {
-        lpv = _lpv;
     }
 
     function setLiquidityPool(address _liquiditypool) public onlyOwner {
@@ -58,10 +57,18 @@ contract LiquidityVault is Ownable, ERC20("LPVaultToken", "lpv") {
 
     // store deposited amount of address,
     function deposit(uint256 _amount) public {
+        require (usdt != IERC20(address(0)), "set usdt first!");
         usdt.transferFrom(msg.sender, address(this), _amount);
         depositedUSDT[msg.sender] = depositedUSDT[msg.sender].add(_amount);
-        // push sender's address to array
-        userAddressCount.push(msg.sender);
+        bool isExist = false;
+        for (uint256 i = 0; i < userAddressCount.length; i++) {
+            if (userAddressCount[i] == msg.sender) {
+                isExist = true;
+            }
+        }
+        if (!isExist) {
+            userAddressCount.push(msg.sender);
+        }
         emit Deposit(msg.sender, _amount);
     }
 
@@ -70,13 +77,18 @@ contract LiquidityVault is Ownable, ERC20("LPVaultToken", "lpv") {
         require(depositedUSDT[msg.sender] >= _amount, "not enough balance");
         usdt.transfer(msg.sender, _amount);
         depositedUSDT[msg.sender] = depositedUSDT[msg.sender].sub(_amount);
-        emit Withdraw(msg.sender, _amount);
+        if (depositedUSDT[msg.sender] == 0) {
+            for (uint256 i = 0; i < userAddressCount.length; i++) {
+                if (userAddressCount[i] == msg.sender) {
+                    delete userAddressCount[i];
+                }
+            }
+        } emit Withdraw(msg.sender, _amount);
     }
 
     // burn lpv token from user. Using for LiquidityPool.
     function burn(address _address, uint256 _amount) public {
         require (msg.sender == liquidityPool, "only liquidityPool can burn");
-        lpv.transferFrom(_address, address(this), _amount);
         _burn(_address, _amount);
     }
 
@@ -93,14 +105,20 @@ contract LiquidityVault is Ownable, ERC20("LPVaultToken", "lpv") {
         for (uint256 i = 0; i < userAddressCount.length; i++) {
             address UserAddress =  userAddressCount[i];
             uint256 amount = depositedUSDT[UserAddress];
-            _mint(UserAddress, amount);
+            if (UserAddress == address(0)) {
+                continue;
+            } else {
+                _mint(UserAddress, amount);
+                }
+            }
         }
-    }
 
     // allow updater transfer out token
     // This is for initiate a new Option Round
     // will delete all deposted amount of users.
     function StartOption() public returns (address sendTo, uint256 sendAmount) {
+        require(updater != address(0), "set Updater!");
+        require(liquidityPool != address(0), "set Liquiditypool!");
         require(msg.sender == updater, "only updater can transfer out");
         uint256 _amount = usdt.balanceOf(address(this));
         usdt.transfer(liquidityPool, _amount);
@@ -120,3 +138,6 @@ contract LiquidityVault is Ownable, ERC20("LPVaultToken", "lpv") {
     }
 
 }
+
+
+    
