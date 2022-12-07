@@ -7,12 +7,11 @@ pragma solidity ^0.8.9;
 // https://stackoverflow.com/questions/72475214/solidity-why-use-initialize-function-instead-of-constructor
 
 // 直接叫名字算了我还要算名字 emmm
+// 三位小数
 
-import "openzeppelin-contracts-4.4.1/token/ERC20/ERC20.sol";
-import "./LiquidityPool.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract Otoken is ERC20 {
-
     error OnlyTrader(address thrower, address caller);
 
     address public marketManager;
@@ -20,19 +19,23 @@ contract Otoken is ERC20 {
     bool public isPut;
     uint256 public expiryTimestamp; 
     uint256 public strikePrice; 
-    address public underlyingAsset;
+   // address public underlyingAsset;
+    string public underlyingAsset;
    // address payable public owner;
 
 
     constructor(       
-            address _underlyingAsset,
+           // address _underlyingAsset,
+            string memory _underlyingAsset,
             address _trader,
             uint256 _expiryTimestamp,
             address _marketManager,
             bool _isPut,
             uint256 _strikePrice,
-            string _token_name,
-            string _token_symbol
+            string memory _token_name,
+            string memory _token_symbol
+            
+            
 
     ) ERC20(_token_name, _token_symbol) payable {
         marketManager = _marketManager;
@@ -55,7 +58,7 @@ contract Otoken is ERC20 {
         external
         view
         returns (
-            address,
+            string memory,
             uint256,
             uint256,
             bool
