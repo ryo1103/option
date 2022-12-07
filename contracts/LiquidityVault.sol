@@ -13,6 +13,7 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "LiquidityPool.sol";
 
 // LiquidityVault is used for preparing option funds.
 // The Funds in this contract will send to LiquidityPool
@@ -27,13 +28,15 @@ contract LiquidityVault is Ownable, ERC20("LPVaultToken", "lpv") {
     IERC20 private lpv;
     address public updater;
     address public liquidityPool;
+    uint256 public roundNumber;
 
     // create a constructor, set "lpv" token address = this contract address.
-    constructor() {
+    constructor() { //部署前重新设置
         lpv = IERC20(address(this));
-        usdt = IERC20(address(0xd9145CCE52D386f254917e481eB44e9943F39138));
+        usdt = IERC20(address(0xd8b934580fcE35a11B58C6D73aDeE468a2833fa8));
         updater = address(msg.sender);
-        liquidityPool = address(0x4D9f44094F448D949fc3EECa230A01d362529424);
+        liquidityPool = address(0xC8CF29d9D1595a3588AD36E6349A0E9a5b632720);
+        roundNumber = 0;
     }
 
     function setUsdt(IERC20 _usdt) public onlyOwner {
@@ -102,16 +105,31 @@ contract LiquidityVault is Ownable, ERC20("LPVaultToken", "lpv") {
 
      // mint token and send to addresses that stored in mapping. Sending amount is equal to mapping data. And function is private
     function _mintToken() private {
-        for (uint256 i = 0; i < userAddressCount.length; i++) {
-            address UserAddress =  userAddressCount[i];
-            uint256 amount = depositedUSDT[UserAddress];
-            if (UserAddress == address(0)) {
-                continue;
-            } else {
-                _mint(UserAddress, amount);
+        uint256 _lpratio = LiquidityPool(liquidityPool).ratioOfUsdtPerLP();
+        if (roundNumber <= 1) {
+            for (uint256 i = 0; i < userAddressCount.length; i++) {
+                address UserAddress =  userAddressCount[i];
+                uint256 amount = depositedUSDT[UserAddress];
+                  if (UserAddress == address(0)) {
+                         continue;
+                 } else {
+                    _mint(UserAddress, amount);
+                }
+            }
+        } else {
+            for (uint256 i = 0; i < userAddressCount.length; i++) {
+                address UserAddress =  userAddressCount[i];
+                uint256 amount = depositedUSDT[UserAddress];
+                uint256 fixamount = amount * _lpratio;
+                if (UserAddress == address(0)) {
+                      continue;
+                } else {
+                    _mint(UserAddress, fixamount);
                 }
             }
         }
+
+    }
 
     // allow updater transfer out token
     // This is for initiate a new Option Round
@@ -122,6 +140,7 @@ contract LiquidityVault is Ownable, ERC20("LPVaultToken", "lpv") {
         require(msg.sender == updater, "only updater can transfer out");
         uint256 _amount = usdt.balanceOf(address(this));
         usdt.transfer(liquidityPool, _amount);
+        roundNumber = roundNumber.add(1);
         _mintToken();
         _deleteDepositedUSDT();
         return (liquidityPool, _amount);
@@ -135,6 +154,12 @@ contract LiquidityVault is Ownable, ERC20("LPVaultToken", "lpv") {
     // withdraw all token, only owner
     function emergencyWithdraw(address token_) public onlyOwner {
         IERC20(token_).transfer(msg.sender, IERC20(token_).balanceOf(address(this)));
+    }
+
+    // check USDT per LP from LiquidityPool.sol, using RatioOfUsdtPerLP function.
+    function checkUSDTperLP() public view returns (uint256) {
+        LiquidityPool lp = LiquidityPool(liquidityPool);
+        return lp.ratioOfUsdtPerLP();
     }
 
 }
