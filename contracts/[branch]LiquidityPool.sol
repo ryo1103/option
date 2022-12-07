@@ -30,17 +30,17 @@ contract LiquidityPool is Ownable {
     address public liquidityVaultAddress;
     address public exchangeAddress;
     address public Updater;
-    uint256 public remainshares;
 
     event Sendout(uint256 usdtAmount);
     
-    constructor() {
+    constructor() { // 需要重新设置
         isOptionStart = false;
         roundNumber = 0;
         Updater = address(0x5B38Da6a701c568545dCfcB03FcB875f56beddC4);
-        lptoken = IERC20(0xd8b934580fcE35a11B58C6D73aDeE468a2833fa8);
-        usdt = IERC20(0xd9145CCE52D386f254917e481eB44e9943F39138);
-        liquidityVaultAddress = address(0xd8b934580fcE35a11B58C6D73aDeE468a2833fa8);
+        lptoken = IERC20(0xD7ACd2a9FD159E69Bb102A1ca21C9a3e3A5F771B);
+        usdt = IERC20(0xf8e81D47203A594245E36C48e151709F0C19fBe8);
+        oToken = IERC20(0xd8b934580fcE35a11B58C6D73aDeE468a2833fa8);
+        liquidityVaultAddress = address(0xD7ACd2a9FD159E69Bb102A1ca21C9a3e3A5F771B);
     }
 
     function setLPtoken(IERC20 _lptoken) public onlyOwner {
@@ -92,16 +92,16 @@ contract LiquidityPool is Ownable {
     // withdrawl usdt from this contract, require burn LP token, and calculate shares, must require isOptionStart = true
     // Need users approve the both LiquidityPool and LiquidityVault on USDT contract, and then approve in LiquidityVault.
     function exitDuringOption(uint256 _amount) public returns(uint256 withdrawAmount) {
-        uint256 soldShares = oToken.totalSupply();
-        uint256 remainShares = usdt.balanceOf(address(this)).sub(soldShares);
-        if (remainShares <= 0) {
-            remainShares = 0;
+        uint256 _soldShares = oToken.totalSupply();
+        uint256 _remainShares = usdt.balanceOf(address(this)).sub(_soldShares);
+        if (_remainShares <= 0) {
+            _remainShares = 0;
         }
-        uint256 userPortion = lptoken.balanceOf(msg.sender).div(lptoken.totalSupply());
+        uint256 _userPortion = lptoken.balanceOf(msg.sender).mul(100).div(lptoken.totalSupply());
         require(isOptionStart == true, "Option is not started");
         require(lptoken.balanceOf(msg.sender) >= _amount, "Not enough LP token");
-        require(remainShares > 0, "No Shares left!");
-        require(_amount <= userPortion.mul(remainShares), "Not enough Shares!");
+        require(_remainShares > 0, "No Shares left!");
+        require(_amount.mul(100) <= _userPortion.mul(_remainShares), "Not enough Shares!");
         LiquidityVault(liquidityVaultAddress).approve(address(this), _amount);
         LiquidityVault(liquidityVaultAddress).approve(address(liquidityVaultAddress), _amount);
         LiquidityVault(liquidityVaultAddress).burn(msg.sender, _amount);
@@ -139,14 +139,26 @@ contract LiquidityPool is Ownable {
     }
 
     // get the ratio of LP token and USDT
-    function RatioOfUsdtPerLP() public view returns (uint256 usdtperlp, uint256 round, bool optionstart) {
+    function ratioOfUsdtPerLPofRound() public view returns (uint256 usdtperlp, uint256 round, bool optionstart) {
+        require (lptoken.totalSupply() != 0, "lptoken not minted!");
         uint256 totalShares = lptoken.totalSupply();
         uint256 usdtPerLp = usdt.balanceOf(address(this)).div(totalShares);
         return (usdtPerLp, roundNumber, isOptionStart);
     }
 
+    function ratioOfUsdtPerLP() public view returns (uint256 usdtperlp) {
+        if (lptoken.totalSupply() == 0){
+            return 1;
+        } else {
+            uint256 totalShares = lptoken.totalSupply();
+            uint256 usdtPerLp = usdt.balanceOf(address(this)).div(totalShares);
+            return (usdtPerLp);
+            }
+    }
+
     // check Remaining Shares
     function checkRemainShares() public view returns (uint256 remain) {
+        require (oToken != IERC20(address(0)), "Set oToken first!");
         uint256 soldShares = oToken.totalSupply();
         uint256 remainShares = usdt.balanceOf(address(this)).sub(soldShares);
         if (remainShares <= 0) {
@@ -157,8 +169,21 @@ contract LiquidityPool is Ownable {
 
     // Check user's portion of LP
     function checkUserLPPortion() public view returns (uint256 userLPportion) {
+        require (lptoken.totalSupply() != 0, "lptoken not minted!");
         uint256 userPortion = lptoken.balanceOf(msg.sender).div(lptoken.totalSupply());
         return userPortion;
     }  
+
+    // function lookUserRatio() public view returns (uint256){
+    //     return lptoken.balanceOf(msg.sender).mul(100).div(lptoken.totalSupply()).mul(usdt.balanceOf(address(this))).sub(oToken.totalSupply());
+    // }
+
+    function lookLPRatio() public view returns (uint256){
+        return lptoken.balanceOf(msg.sender).mul(100).div(lptoken.totalSupply());
+    }
+
+    function lookremain() public view  returns(uint256){
+        return usdt.balanceOf(address(this)).sub(oToken.totalSupply());
+    }
 
 }
