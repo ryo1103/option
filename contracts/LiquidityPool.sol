@@ -61,6 +61,7 @@ contract LiquidityPool {
     mapping( address => DepositDetail ) public depositRecord;
     mapping( address => uint256 ) public withdrawRecord;
     address[] internal users;
+    mapping( address => bool) public islp;
 
 // owner 的问题
     constructor( address _token, address _marketManager) {
@@ -94,7 +95,11 @@ contract LiquidityPool {
        // console.log(userTotalDepositValue,'userTotalDepositValue');
        // console.log('now', depositRecord[userAddress].current, 'next',depositRecord[userAddress].next);
         // 这个应该先判断有没有存过再考虑要不要添加
-        users.push(userAddress);
+        // 搞个字典判断用户被添加没有 不然清算会重复
+        if ( !islp[userAddress] ){
+            users.push(userAddress);
+            islp[userAddress] = true;
+        }
         token.transferFrom(msg.sender, address(this), amount);
         emit Deposited(userAddress, amount);
     } 
@@ -231,10 +236,13 @@ contract LiquidityPool {
             if ( depositRecord[users[i]].current != 0 ){
                 uint256 value = token.balanceOf(address(this) );
                 uint256 current = depositRecord[users[i]].current;
-
                 console.log('deposit user', current, userTotalDepositValue, value);
-                uint256 newDepositValue = depositRecord[users[i]].current / userTotalDepositValue * (token.balanceOf(address(this)) - nextTotalDeposit);
-                depositRecord[users[i]].current =  newDepositValue;
+                console.log('^^^@@@@', i,users[i]);
+                // 这里小数位0 怎么处理呀
+                uint256 newDepositValue =  depositRecord[users[i]].current / (userTotalDepositValue/10**3) * (token.balanceOf(address(this)) - nextTotalDeposit);
+                console.log('newValue', depositRecord[users[i]].current, token.balanceOf(address(this)));
+                console.log(depositRecord[users[i]].next,newDepositValue/10**3 );
+                depositRecord[users[i]].current =  newDepositValue/10**3 + depositRecord[users[i]].next;  // 要记得帮用户滚仓 
             }else{
                 depositRecord[users[i]].current = depositRecord[users[i]].next;
             }   

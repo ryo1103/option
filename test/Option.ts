@@ -3,6 +3,7 @@ import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 import { expect } from "chai";
 import { ethers, userConfig } from "hardhat";
 import { parseEther } from "ethers/lib/utils";
+import { Otoken__factory } from "../typechain-types";
 
 describe("Option", function () {
   // We define a fixture to reuse the same setup in every test.
@@ -106,7 +107,7 @@ describe("Option", function () {
       expect(await liquidityPool.getWithdrawValue()).to.equal(ethers.utils.parseEther("30"))
     }); 
 
-    it("Can trade ", async function () {
+   /* it("Can trade ", async function () {
       // 查看买卖会不会改变资金池的钱, 同时可不可以改变liquidation 剩余的钱, 看一下可以取出的钱的分配
       const { liquidityPool, marketManager,traderBtcCall,btcCall, usdt, oracle} = await loadFixture(deployOptionFixture);
       await marketManager.setLiquidityPool(liquidityPool.address)
@@ -155,9 +156,9 @@ describe("Option", function () {
       console.log('购买前:',ethers.utils.formatEther(canWithdraw1),ethers.utils.formatEther(margin1), '购买后:',ethers.utils.formatEther(canWithdraw2),ethers.utils.formatEther(margin2), '存钱量:', ethers.utils.formatEther(depositValue), ethers.utils.formatEther(nextValue)  ) // 小数位的问题
       expect(value2).to.equal(ethers.utils.parseEther('1'))
 
-    }); 
+    });  */
 
-   /* it("Liquidition", async function () {
+    it("Liquidition", async function () {
       const { liquidityPool, marketManager,traderBtcCall,btcCall, usdt, oracle, otherAccount} = await loadFixture(deployOptionFixture);
       await marketManager.setLiquidityPool(liquidityPool.address)
       await marketManager.addOption(traderBtcCall.address, btcCall.address)
@@ -188,7 +189,7 @@ describe("Option", function () {
       await usdt.approve(traderBtcCall.address, ethers.utils.parseEther('1000000'))
       console.log('price', firstPrice) 
   //    console.log('opopop',ethers.utils.parseEther('1'),firstPrice.optionPrice, firstPrice.timestamp, parseEther(firstPrice.optionPrice.div(10^11).toString()))
-      await traderBtcCall.connect(otherAccount).buyToken(1, ethers.utils.parseEther(firstPrice.optionPrice.toString()),firstPrice.timestamp)
+      await traderBtcCall.connect(otherAccount).buyToken(1,firstPrice.optionPrice,firstPrice.timestamp)
       let traderState1 = await traderBtcCall.state()
       let traderBlance1= await usdt.balanceOf(traderBtcCall.address)
 
@@ -210,36 +211,38 @@ describe("Option", function () {
 
       // 前端 先判断trader 状态走claim 换取收益:
       let user2B1 = await usdt.balanceOf(otherAccount.address)
-      await traderBtcCall.connect(otherAccount).excercise(btcCall.balanceOf(otherAccount.address))
+      let oto= await btcCall.balanceOf(otherAccount.address)
+      console.log('用户otoken',oto )
+      await traderBtcCall.connect(otherAccount).excercise(oto)
       let user2B2 = await usdt.balanceOf(otherAccount.address)
       let user1D2 = await liquidityPool.getDepositTest()
 
       let lpUser1= await liquidityPool.userTotalDepositValue()
       let lpNext1= await liquidityPool.nextTotalDeposit()
-      console.log('清算前用户余额:', user2B1, '后；', user2B2)
+      console.log('清算前用户余额:', ethers.utils.formatEther(user2B1), '后；', ethers.utils.formatEther(user2B2))
 
       // liquidity 池子看一下资金分配 这个时候 userTotal应该变了 , 是之前总的钱-转出去的钱 （就是用户结算数量* 价格） nextdeposit 是0 
       
-      console.log('清算前lp余额:', user1D, '后；', user1D2)
+      console.log('清算前lp余额:', ethers.utils.formatEther(user1D[0]),ethers.utils.formatEther(user1D[1]), '后；', ethers.utils.formatEther(user1D2[0]),ethers.utils.formatEther(user1D2[1]) )
 
-      console.log('清算前pool:', lpUser,lpNext , '后；', lpUser1,lpNext1 )
+      console.log('清算前pool:', ethers.utils.formatEther(lpUser),ethers.utils.formatEther(lpNext) , '后；', ethers.utils.formatEther(lpUser1),ethers.utils.formatEther(lpNext1) )
 
       // 此时继续存钱 资金应该算是本轮的资金
       await liquidityPool.deposit(ethers.utils.parseEther("5"))
       let lpUser3= await liquidityPool.userTotalDepositValue()
       let lpNext3= await liquidityPool.nextTotalDeposit()
 
-      console.log('再次存入pool:', lpUser3,lpNext3)
+      console.log('再次存入pool:', ethers.utils.formatEther(lpUser3),ethers.utils.formatEther(lpNext3))
 
       await marketManager.marketstart()
       await liquidityPool.deposit(ethers.utils.parseEther("1"))
       let lpUser4= await liquidityPool.userTotalDepositValue()
       let lpNext4= await liquidityPool.nextTotalDeposit()
 
-      console.log('下一轮开始再次存入pool:', lpUser4,lpNext4)
+      console.log('下一轮开始再次存入pool:', ethers.utils.formatEther(lpUser4),ethers.utils.formatEther(lpNext4))
 
     }); 
-    */
+    
     
     
 

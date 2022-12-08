@@ -164,9 +164,9 @@ contract Trader is ReentrancyGuard, Ownable{
     function excercise (uint256 amount) public returns(string memory) {
         require (state() == State.Closed, 'settlement does not start');
         require (settlePrice != 2, 'trader settlement is not complete');
-        if (settlePrice == 1){
+        if (settlePrice == 1 ether){
             oToken.burn(msg.sender, amount);
-            currency.transfer(msg.sender, amount);
+            currency.transfer(msg.sender, amount * settlePrice);
             emit Excercise(msg.sender, oToken.name(), amount, settlePrice);
             return 'Already exercised, strike price is 1';
         }else{
