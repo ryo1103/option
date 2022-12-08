@@ -76,14 +76,15 @@ contract Trader is ReentrancyGuard, Ownable{
     }
 
     //TODO 这个喂价问题怎么解决可以后面问box和姚主席 *** 如果加了时间戳的话理论上是可以按任何价格买卖的，前提喂价合约可以保存一定时间的数据.
-    function getaAmountOnSpecificPrice (uint256 price) public view returns(uint256 optionPrice, uint256 supply){
+    function getaAmountOnSpecificPrice (uint256 price, uint margin) public view returns(uint256 optionPrice, uint256 supply){
+        // 通过价格和保证金存量决定价格 ， 但目前暂未实现
         Oracle.MockDataPoint memory priceRes = oracle.getPriceInSpecificTime(price, oToken.name());
         return (priceRes.optionPrice, priceRes.amount);
     }
 
     function getSettlePrice () public view returns(uint256){
         // mock 的方法所以直接取oracle 中最后一个点的数据 
-         Oracle.MockDataPoint memory settlePrice = oracle.getSettlePrice(oToken.name());
+        Oracle.MockDataPoint memory settlePrice = oracle.getSettlePrice(oToken.name());
         return settlePrice.optionPrice;
 
     }
@@ -100,7 +101,7 @@ contract Trader is ReentrancyGuard, Ownable{
         // 需要判断用户要买的量是不是超过，可以出售的最大值了
         // 可出售的最大值有两部分组成 一是正太函数确定的供给需求，另一个是此轮开始lp池子里的未提取的保证金 - 未占用的保证金
         uint256 margin = liquidityPool.getMarginLeft();
-        (uint256 optionPrice, uint256 supply) = getaAmountOnSpecificPrice(index);
+        (uint256 optionPrice, uint256 supply) = getaAmountOnSpecificPrice(index, margin);
         console.log('price',optionPrice);
         // demo 版本optionPrice 和 targetPrice 来源都是一个源，结果肯定是一样的 但真实版需要比较
         uint256 maxVolume = margin >= supply ? margin : supply;
@@ -109,11 +110,11 @@ contract Trader is ReentrancyGuard, Ownable{
         // 买卖这里感觉 钱转的有点问题
         uint256 amount = realSell * targetPrice;
         // 这个直接转账就可以了吗？ 看起来erc20 是可以的
-        console.log('amount', amount, supply);
+        console.log('amount', amount, realSell,supply);
         currency.transferFrom(msg.sender, address(liquidityPool), amount);
         console.log('sell', amount, realSell);
         oToken.mint(msg.sender, realSell);
-        liquidityPool.sell(amount);
+        liquidityPool.sell(realSell * 10 ** 18);
         emit Purchase(msg.sender, oToken.name(), amount, targetPrice);
         return tradeMessage;
     }
@@ -124,16 +125,18 @@ contract Trader is ReentrancyGuard, Ownable{
         // TODO首先先要看过没过期 过期了的话不卖也不回收
         // 判断池子里的钱够不够 就是totalbalance - 没生效的lp 够不够这次支付的
         // 赎回像是义务 所以bid 单感觉要不要限价 是有危险的
-        require (state() == State.Active, 'Settlement has not yet started');
-        require (targetPrice <= 1000 , 'Buyback price cannot exceed 1'); // 三位小数写死了#### TODO
+        require (state() == State.Active, 'do not start , cant buy');
+        require (targetPrice <= 1 ether , 'Buyback price cannot exceed 1'); // 三位小数写死了#### TODO
         // TODO首先先要看过没过期 过期了的话不卖也不回收
         uint256 amount = targetAmount * targetPrice;
         require (liquidityPool.isAffordable(amount), 'Current liquidity pool underfunded');
-        currency.transferFrom(address(liquidityPool),msg.sender, amount);
+        // currency.transferFrom(address(liquidityPool),msg.sender, amount);
         console.log('burn', amount, oToken.totalSupply());
+        console.log('^&&&&&^',targetAmount,targetPrice, currency.balanceOf(address(liquidityPool)));
         oToken.burn(msg.sender, targetAmount);
         // 减少抵押品  
-        liquidityPool.buyback(targetAmount, msg.sender);
+        liquidityPool.buyback(targetAmount * 10 **18 , amount , msg.sender);
+        console.log('^&&&&&^',currency.balanceOf(address(liquidityPool)));
         emit Redeem(msg.sender, oToken.name(), amount, targetPrice);
     }
 
@@ -146,14 +149,20 @@ contract Trader is ReentrancyGuard, Ownable{
         // 按照当前预言机的价格结算, 并将这个结算价格写进合约，然后从liquidity 的池子里把钱转过来, 每个trader只能转一次 
         
         uint256 tokenToExcercise = oToken.totalSupply();
+        console.log('otoken sell',tokenToExcercise );
         settlePrice = getSettlePrice();
-        uint256 settleAmount = settlePrice  * tokenToExcercise;
+        uint256 settleAmount = settlePrice  * tokenToExcercise; // 运算问题小数点
+        uint256 liquiditypoolbalance = currency.balanceOf(address(liquidityPool));
+        console.log('liquidityPool value', liquiditypoolbalance );
         liquidityPool.transferToTrader(settleAmount);
+        console.log('Settlement funds', settleAmount);
+        uint256 liquiditypoolbalance1 = currency.balanceOf(address(liquidityPool));
+        console.log('liquidityPool value after', liquiditypoolbalance1 );
 
     }
 
     function excercise (uint256 amount) public returns(string memory) {
-        require (state() == State.Closed, 'do not start , cant sell');
+        require (state() == State.Closed, 'settlement does not start');
         require (settlePrice != 2, 'trader settlement is not complete');
         if (settlePrice == 1){
             oToken.burn(msg.sender, amount);

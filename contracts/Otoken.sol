@@ -32,8 +32,10 @@ contract Otoken is ERC20 {
             address _marketManager,
             bool _isPut,
             uint256 _strikePrice,
+            
             string memory _token_name,
             string memory _token_symbol
+
             
             
 

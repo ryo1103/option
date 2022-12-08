@@ -75,13 +75,13 @@ contract Oracle is Ownable{
             allMockList[optionName][i].underlyingPrice = startNum + random(400 ,i+2);
             allMockList[optionName][i].timestamp = i;
             //不知道能不能生成小数
-            allMockList[optionName][i].optionPrice = random(1000, i+29);
+            allMockList[optionName][i].optionPrice = random(1000, i+29) * 10 ** 15 ;
             allMockList[optionName][i].amount = random(1300,i+8);
         }
         allMockList[optionName][19].underlyingPrice = 17000  + random(100,34);
         allMockList[optionName][19].timestamp = 19;
             //不知道能不能生成小数
-        allMockList[optionName][19].optionPrice = 1;
+        allMockList[optionName][19].optionPrice = 1 ether;
         allMockList[optionName][19].amount = random(1300, 13);
 
     }
@@ -138,6 +138,6 @@ contract Oracle is Ownable{
         return uint(keccak256(abi.encodePacked(block.timestamp,block.difficulty, msg.sender, index))) % num;
     }
 
-
+    // 模拟的数据0，1 范围
 
 }

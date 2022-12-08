@@ -81,12 +81,11 @@ contract LiquidityPool {
         address userAddress = msg.sender;
         // 可以添加最少存多少的函数
         if (marketManager.state() == MarketManager.State.Running){
-         //   console.log('step 11111');
-            // 正在运行过程中存入的钱 下一轮进入分成
+            console.log('step 11111', userAddress, amount);
             nextTotalDeposit += amount;
             depositRecord[userAddress].next += amount;
         }else{
-        //    console.log('step 22211');
+            console.log('step 22211', userAddress, amount);
             userTotalDepositValue += amount;
             depositRecord[userAddress].current += amount;
         }
@@ -126,10 +125,22 @@ contract LiquidityPool {
         return (token.balanceOf(address(this)) - nextTotalDeposit) > amount;
     }
 
+    function getDepositValue () external view returns (uint256){
+        // roll over 算是用户手动deposit的
+        address userAddress = msg.sender;
+        return depositRecord[userAddress].next + depositRecord[userAddress].current;
+    }
+
+    function getDepositTest () external view returns (uint256, uint256){
+        // roll over 算是用户手动deposit的
+        address userAddress = msg.sender;
+        return (depositRecord[userAddress].next ,depositRecord[userAddress].current);
+    }
 
     function getWithdrawValue () public view returns (uint) {
         // 这样会有一个问题 用户如果在初始前存入了,运行中又存入了这样的话我会扣了他全部的钱
         address userAddress = msg.sender;
+      //  console.log('userAddress',userAddress, depositRecord[userAddress].current, depositRecord[userAddress].next);
         if ( depositRecord[userAddress].current == 0){
             // 这一轮没有存过钱
             return depositRecord[userAddress].next;
@@ -168,23 +179,27 @@ contract LiquidityPool {
     }
 
     // 只有trader合约调用才可以更改参数
-    function sell(uint256 amount) external onlyTrader {
+    function sell(uint256 lockNum) external onlyTrader {
         // 要先判断一下保证金和 要买的数目对的上不  如果保证金不足的话 就revert
-        require (amount > 0 ,'price must be greater than zero');
-        LockedValue += amount;
+        require (lockNum > 0 ,'price must be greater than zero');
+        LockedValue += lockNum;
     }
 
     // 只有trader合约调用可以调用该合约转钱
-    function buyback(uint256 amount, address seller) external onlyTrader {
+    function buyback(uint256 lockNum, uint256 amount, address seller) external onlyTrader {
         require (amount > 0 && token.balanceOf(address(this)) > amount , 'amount error');
-        if (LockedValue >= amount ){
-            LockedValue -= amount;
+        if (LockedValue >= lockNum ){
+            LockedValue -= lockNum;
         }else{
             LockedValue = 0;
         }
+        console.log('---', token.balanceOf(address(this)));
+        console.log('@@@',token.name(), amount);
+        
         if (!token.transfer(seller, amount)) {
             revert buybackFailed(address(this), msg.sender, seller, amount);
         }
+        console.log('+++', token.balanceOf(address(this)));
     }
 
     function liquidation () external onlyMarketManager{
@@ -214,6 +229,10 @@ contract LiquidityPool {
         //
         for (uint256 i=0; i < users.length; i++ ){
             if ( depositRecord[users[i]].current != 0 ){
+                uint256 value = token.balanceOf(address(this) );
+                uint256 current = depositRecord[users[i]].current;
+
+                console.log('deposit user', current, userTotalDepositValue, value);
                 uint256 newDepositValue = depositRecord[users[i]].current / userTotalDepositValue * (token.balanceOf(address(this)) - nextTotalDeposit);
                 depositRecord[users[i]].current =  newDepositValue;
             }else{

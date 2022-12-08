@@ -67,10 +67,11 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
          // 这里有点问题 这个是总开关我不应该写在单个的里面
         Trader(trader).startSwap();
     }
+    
 
     // 到期清算先手动出发 后面可以遍历 
     function settleOption(address otokenAddress) public onlyOwner{
-        options[otokenAddress].isexpire = true;
+       // options[otokenAddress].isexpire = true; 暂时没用到这个
         // 先trader清算，再清算liquidity 池子
         Trader nowTrader = Trader(options[otokenAddress].trader);
         nowTrader.closeSwap();

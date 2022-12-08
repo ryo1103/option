@@ -1,7 +1,7 @@
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 import { expect } from "chai";
-import { ethers } from "hardhat";
+import { ethers, userConfig } from "hardhat";
 import { parseEther } from "ethers/lib/utils";
 
 describe("Option", function () {
@@ -107,6 +107,7 @@ describe("Option", function () {
     }); 
 
     it("Can trade ", async function () {
+      // 查看买卖会不会改变资金池的钱, 同时可不可以改变liquidation 剩余的钱, 看一下可以取出的钱的分配
       const { liquidityPool, marketManager,traderBtcCall,btcCall, usdt, oracle} = await loadFixture(deployOptionFixture);
       await marketManager.setLiquidityPool(liquidityPool.address)
       await marketManager.addOption(traderBtcCall.address, btcCall.address)
@@ -118,6 +119,10 @@ describe("Option", function () {
       state = await marketManager.state()
       console.log('开启市场状态', state)
       liquidityPool.deposit(ethers.utils.parseEther("20"))
+      let depositValue = await liquidityPool.userTotalDepositValue()
+      let nextValue = await liquidityPool.nextTotalDeposit()
+      let canWithdraw1 = await liquidityPool.getWithdrawValue()
+      let margin1 = await liquidityPool.getMarginLeft()
       await marketManager.startOption(traderBtcCall.address)
       await oracle.initBtcCallMockData('btcCall')
       let firstPrice = await oracle.getLastPrice('btcCall')
@@ -128,22 +133,39 @@ describe("Option", function () {
       let decimals = await btcCall.decimals()
       let balance1 = await usdt.balanceOf(liquidityPool.address)
       await usdt.approve(traderBtcCall.address, ethers.utils.parseEther('1000000'))
-      console.log('opopop',ethers.utils.parseEther('1'),firstPrice.optionPrice, firstPrice.timestamp, parseEther(firstPrice.optionPrice.div(10^11).toString()))
-      await traderBtcCall.buyToken(1, ethers.utils.parseEther(firstPrice.optionPrice.toString()),firstPrice.timestamp)
+      let value1 = await liquidityPool.LockedValue()
+     // console.log('opopop',ethers.utils.parseEther('1'),firstPrice.optionPrice, firstPrice.timestamp, parseEther(firstPrice.optionPrice.div(10^11).toString()))
+      await traderBtcCall.buyToken(1, firstPrice.optionPrice,firstPrice.timestamp)
+      let value2 = await liquidityPool.LockedValue()
       let balance2 = await usdt.balanceOf(liquidityPool.address)
+
+      let canWithdraw2 = await liquidityPool.getWithdrawValue()
+      let margin2 = await liquidityPool.getMarginLeft()
       console.log('liquidity账户资金', balance1 ,ethers.utils.formatEther(balance2))
+    
+      let v = await usdt.balanceOf(liquidityPool.address)
+      console.log('90909090',ethers.utils.formatEther( v))
       await traderBtcCall.sellToken(1, secPrice.optionPrice)
+      console.log('secPrice',ethers.utils.formatEther(secPrice.optionPrice))
       let balance3 = await usdt.balanceOf(liquidityPool.address)
-      console.log('liquidity', balance3)
-      // expect(await liquidityPool.getWithdrawValue()).to.equal(ethers.utils.parseEther("30"))
+      let value3 = await liquidityPool.LockedValue()
+      console.log('90909090', ethers.utils.formatEther(balance3) )
+      // 因为Lock number 我直接存的是1 没有乘usdt 的价格 所以有这个问题  但这个怎么解决 直接变成1Ether usdt 的小数位是8位怎么办？？？
+      console.log('price',ethers.utils.formatEther(firstPrice.optionPrice),'liquidity',ethers.utils.formatEther(balance3),  '清算前', ethers.utils.formatEther(value1), ethers.utils.formatEther(value2), '清算后', ethers.utils.formatEther(value3) )
+      console.log('购买前:',ethers.utils.formatEther(canWithdraw1),ethers.utils.formatEther(margin1), '购买后:',ethers.utils.formatEther(canWithdraw2),ethers.utils.formatEther(margin2), '存钱量:', ethers.utils.formatEther(depositValue), ethers.utils.formatEther(nextValue)  ) // 小数位的问题
+      expect(value2).to.equal(ethers.utils.parseEther('1'))
 
     }); 
 
-    it("Liquidition", async function () {
-      const { liquidityPool, marketManager,traderBtcCall,btcCall, usdt, oracle} = await loadFixture(deployOptionFixture);
+   /* it("Liquidition", async function () {
+      const { liquidityPool, marketManager,traderBtcCall,btcCall, usdt, oracle, otherAccount} = await loadFixture(deployOptionFixture);
       await marketManager.setLiquidityPool(liquidityPool.address)
       await marketManager.addOption(traderBtcCall.address, btcCall.address)
       await usdt.approve(liquidityPool.address, ethers.utils.parseEther("50"))
+      // 用户2 购买
+      usdt.transfer(otherAccount.address,ethers.utils.parseEther("1000000"))
+      await usdt.connect(otherAccount).approve(traderBtcCall.address, ethers.utils.parseEther("50000"))
+      await marketManager.marketClose()
       let state = await marketManager.state()
       console.log('关闭市场状态', state)
       liquidityPool.deposit(ethers.utils.parseEther("10"))
@@ -151,38 +173,124 @@ describe("Option", function () {
       state = await marketManager.state()
       console.log('开启市场状态', state)
       liquidityPool.deposit(ethers.utils.parseEther("20"))
+      let v = await liquidityPool.userTotalDepositValue()
+      console.log(v,'@@@@@@')
+    // 打开交易开关
       await marketManager.startOption(traderBtcCall.address)
       await oracle.initBtcCallMockData('btcCall')
       let firstPrice = await oracle.getLastPrice('btcCall')
       await oracle.updatePrice()
       let secPrice = await oracle.getLastPrice('btcCall')
-      console.log('price',firstPrice, secPrice )
+   //   console.log('price',firstPrice, secPrice )
       //买卖获取量的时候记得小数位数  前端可以在传的时候把小数位处理好
       let decimals = await btcCall.decimals()
       let balance1 = await usdt.balanceOf(liquidityPool.address)
       await usdt.approve(traderBtcCall.address, ethers.utils.parseEther('1000000'))
-      console.log('opopop',ethers.utils.parseEther('1'),firstPrice.optionPrice, firstPrice.timestamp, parseEther(firstPrice.optionPrice.div(10^11).toString()))
-      await traderBtcCall.buyToken(1, ethers.utils.parseEther(firstPrice.optionPrice.toString()),firstPrice.timestamp)
-      let balance2 = await usdt.balanceOf(liquidityPool.address)
-      console.log('liquidity账户资金', balance1 ,ethers.utils.formatEther(balance2))
-      await traderBtcCall.sellToken(1, secPrice.optionPrice)
-      let balance3 = await usdt.balanceOf(liquidityPool.address)
-      console.log('liquidity', balance3)
-      // expect(await liquidityPool.getWithdrawValue()).to.equal(ethers.utils.parseEther("30"))
+      console.log('price', firstPrice) 
+  //    console.log('opopop',ethers.utils.parseEther('1'),firstPrice.optionPrice, firstPrice.timestamp, parseEther(firstPrice.optionPrice.div(10^11).toString()))
+      await traderBtcCall.connect(otherAccount).buyToken(1, ethers.utils.parseEther(firstPrice.optionPrice.toString()),firstPrice.timestamp)
+      let traderState1 = await traderBtcCall.state()
+      let traderBlance1= await usdt.balanceOf(traderBtcCall.address)
+
+      let user1D = await liquidityPool.getDepositTest()
+      let lpUser= await liquidityPool.userTotalDepositValue()
+      let lpNext= await liquidityPool.nextTotalDeposit()
+
+      // 清算开始 直接settleOption 会自动关闭交易对  用的是optionToken的地址  同时为了liquidity pool 可以正常记录价格 要把市场关了 marketCLose
+      await marketManager.settleOption(btcCall.address)
+      await marketManager.marketClose()
+      let traderState2 = await traderBtcCall.state()
+      let traderBlance2= await usdt.balanceOf(traderBtcCall.address)
+      console.log('before:', traderState1, 'after:', traderState2)
+      console.log('trader balance', traderBlance1  ,traderBlance2)
+      // 不能购买了
+     //await expect(await traderBtcCall.connect(otherAccount).buyToken(1, ethers.utils.parseEther(firstPrice.optionPrice.toString()),firstPrice.timestamp)).to.be.revertedWith('do not start , cant buy')
+   //  await traderBtcCall.connect(otherAccount).buyToken(1, ethers.utils.parseEther(firstPrice.optionPrice.toString()),firstPrice.timestamp)
+      
+
+      // 前端 先判断trader 状态走claim 换取收益:
+      let user2B1 = await usdt.balanceOf(otherAccount.address)
+      await traderBtcCall.connect(otherAccount).excercise(btcCall.balanceOf(otherAccount.address))
+      let user2B2 = await usdt.balanceOf(otherAccount.address)
+      let user1D2 = await liquidityPool.getDepositTest()
+
+      let lpUser1= await liquidityPool.userTotalDepositValue()
+      let lpNext1= await liquidityPool.nextTotalDeposit()
+      console.log('清算前用户余额:', user2B1, '后；', user2B2)
+
+      // liquidity 池子看一下资金分配 这个时候 userTotal应该变了 , 是之前总的钱-转出去的钱 （就是用户结算数量* 价格） nextdeposit 是0 
+      
+      console.log('清算前lp余额:', user1D, '后；', user1D2)
+
+      console.log('清算前pool:', lpUser,lpNext , '后；', lpUser1,lpNext1 )
+
+      // 此时继续存钱 资金应该算是本轮的资金
+      await liquidityPool.deposit(ethers.utils.parseEther("5"))
+      let lpUser3= await liquidityPool.userTotalDepositValue()
+      let lpNext3= await liquidityPool.nextTotalDeposit()
+
+      console.log('再次存入pool:', lpUser3,lpNext3)
+
+      await marketManager.marketstart()
+      await liquidityPool.deposit(ethers.utils.parseEther("1"))
+      let lpUser4= await liquidityPool.userTotalDepositValue()
+      let lpNext4= await liquidityPool.nextTotalDeposit()
+
+      console.log('下一轮开始再次存入pool:', lpUser4,lpNext4)
 
     }); 
+    */
+    
+    
 
-    /*
 
-    it("add trader", async function () {
 
-      const { liquidityPool,traderBtcCall} = await loadFixture(deployOptionFixture);
-      await liquidityPool.setTrader(traderBtcCall.address)
-      let res = await liquidityPool.isTrader(traderBtcCall.address)
-      console.log(res,'result')
-      expect(res).to.equal(true);
+  
+
+    /* it("can withdraw", async function () {
+      const { liquidityPool, marketManager,traderBtcCall,btcCall, usdt, oracle,otherAccount} = await loadFixture(deployOptionFixture);
+      await marketManager.setLiquidityPool(liquidityPool.address)
+      await marketManager.addOption(traderBtcCall.address, btcCall.address)
+      await usdt.approve(liquidityPool.address, ethers.utils.parseEther("50"))
+      await usdt.approve(traderBtcCall.address, ethers.utils.parseEther('1000000'))
+      // 献给账户2 转钱啊！！！！！！！！！
+      usdt.transfer(otherAccount.address,ethers.utils.parseEther("100"))
+      await usdt.connect(otherAccount).approve(liquidityPool.address, ethers.utils.parseEther("50"))
+      let state = await marketManager.state()
+      console.log('关闭市场状态', state)
+      liquidityPool.deposit(ethers.utils.parseEther("10"))
+
+      //  ~~~~~~~~~ market start ~~~~~~~~~~~~~~~
+      await marketManager.marketstart()
+      state = await marketManager.state()
+      console.log('开启市场状态', state)
+      liquidityPool.connect(otherAccount).deposit(ethers.utils.parseEther("20"))
+      await oracle.initBtcCallMockData('btcCall')
+      let firstPrice = await oracle.getLastPrice('btcCall')
+      await traderBtcCall.buyToken(1, ethers.utils.parseEther(firstPrice.optionPrice.toString()),firstPrice.timestamp)
+      let thisround = await liquidityPool.getWithdrawValue()
+      let  nextwithDraw = await liquidityPool.connect(otherAccount).getWithdrawValue()
+      let totalValue = await usdt.balanceOf(liquidityPool.address)
+      console.log('此轮参与者可提取',thisround,'下轮',nextwithDraw, totalValue)
+      // 其他用户的钱没approve 成功 没存进去
+      expect(await liquidityPool.connect(otherAccount).getWithdrawValue()).to.equal(ethers.utils.parseEther("20"))
+      // 真正提款
+      let user1deposit = await liquidityPool.getDepositValue()
+      let user2deposit = await liquidityPool.connect(otherAccount).getDepositValue()
+      
+      await liquidityPool.withdraw(ethers.utils.parseEther("1"))
+      await liquidityPool.connect(otherAccount).withdraw(ethers.utils.parseEther("1"))
+
+      let user1deposit1 = await liquidityPool.getDepositValue()
+      let user2deposit1 = await liquidityPool.connect(otherAccount).getDepositValue()
+      console.log('取款前', user1deposit, '取款后', user1deposit1)
+      console.log('取款前', user2deposit, '取款后', user2deposit1)
     });  */
+
+
   });
+
+
 
 
 
